@@ -32,10 +32,14 @@ class Bundle(object):
     def get(self, type: str) -> list:
         if type == "indicators":
             return [obj for obj in self.objects if isinstance(obj, Indicator) or issubclass(obj.__class__, Indicator)]
-        elif type == "relationship":
+        elif type == "relationships":
             return [obj for obj in self.objects if isinstance(obj, Relationship)]
-        elif type == "domain":
+        elif type == "domains":
             return [obj for obj in self.objects if isinstance(obj, Domain)]
+        elif type == "processes":
+            return [obj for obj in self.objects if isinstance(obj, Process)]
+        elif type == "emails":
+            return [obj for obj in self.objects if isinstance(obj, Email)]
         return []
 
     @property
@@ -44,11 +48,19 @@ class Bundle(object):
 
     @property
     def relationships(self) -> list:
-        return self.get("relationship")
+        return self.get("relationships")
 
     @property
     def domains(self) -> list:
-        return self.get("domain")
+        return self.get("domains")
+
+    @property
+    def processes(self) -> list:
+        return self.get("processes")
+
+    @property
+    def emails(self) -> list:
+        return self.get("emails")
 
     @property
     def objects(self):
@@ -282,6 +294,10 @@ class Indicator(StixObject):
         return self._type
 
     @property
+    def indicator_types(self):
+        return self._indicator_types
+
+    @property
     def valid_from(self):
         return self._valid_from
 
@@ -291,7 +307,10 @@ class Indicator(StixObject):
 
     @property
     def pattern(self):
-        return self._pattern
+        if isinstance(self, Indicator):
+            return self._pattern
+        else:
+            return f"[{self.pattern_name}='{self.value}']"
 
     @pattern.setter
     def pattern(self, value: str) -> None:
@@ -306,9 +325,7 @@ class Indicator(StixObject):
             "id": self.id,
             "created": self.creation_time,
             "modified": self.modification_time,
-            #"indicator_types": [
-                #"malicious-activity"
-            #],
+            "indicator_types": self.indicator_types,
             "pattern": self.pattern,
             "pattern_type": "stix",
             "pattern_version": "2.1",
@@ -363,9 +380,41 @@ class Domain(Indicator):
     def __init__(self, value=None):
         super().__init__(value=value, type="domain")
 
-    @property
-    def pattern(self):
-        return f"[domain-name:value='{self.value}']"
+
+class Email(Indicator):
+    """
+    Indicator of an email address
+    """
+    pattern_name = "email-addr:value"
+    def __init__(self, value=None):
+        super().__init__(value=value, type="email")
+
+
+class FileMD5(Indicator):
+    """
+    Indicator of a md5 of a file
+    """
+    pattern_name = "file:hashes.md5"
+    def __init__(self, value=None):
+        super().__init__(value=value, type="file-md5")
+
+
+class FileName(Indicator):
+    """
+    Indicator of a file name
+    """
+    pattern_name = "file:name"
+    def __init__(self, value=None):
+        super().__init__(value=value, type="file-name")
+
+
+class Process(Indicator):
+    """
+    Indicator of a process name
+    """
+    pattern_name = "process:name"
+    def __init__(self, value=None):
+        super().__init__(value=value, type="process")
 
 
 class Relationship(StixObject):
@@ -848,7 +897,7 @@ class Report(StixObject):
 
     @property
     def name(self):
-        return sef._name
+        return self._name
 
     @name.setter
     def name(self, value):

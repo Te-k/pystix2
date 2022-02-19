@@ -13,6 +13,8 @@ class TestSTIXParsing:
         assert len(bd.indicators) == 1517
         assert len(bd.relationships) == 1517
         assert len(bd.domains) == 1412
+        assert len(bd.processes) == 79
+        assert len(bd.emails) == 25
 
     def test_parsing_apt1(self):
         file = os.path.join(get_data_folder(), "apt1.json")
@@ -22,4 +24,6 @@ class TestSTIXParsing:
         assert len(bd.objects) == 76
         assert len(bd.indicators) == 12
         assert len(bd.relationships) == 30
+        assert len(bd.domains) == 3
+        assert len(bd.processes) == 0
 
