@@ -13,7 +13,7 @@ setup(
     author='Tek',
     author_email='tek@randhome.io',
     keywords='security',
-    install_requires=['dateutil'],
+    install_requires=['dateutil', 'stringcase'],
     license='MIT',
     packages=['pystix2'],
     classifiers=[

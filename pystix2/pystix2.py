@@ -2,6 +2,7 @@
 from datetime import datetime, date
 from dateutil.parser import parse
 import uuid
+import stringcase
 import json
 import re
 
@@ -62,7 +63,6 @@ class Bundle(object):
         self._id = value
 
     def add(self, obj):
-        # TODO: check type
         self._objects.append(obj)
 
     def to_struct(self):
@@ -114,8 +114,11 @@ class StixObject(object):
     """
     Class that implements STIX Domain Objects
     """
-    def __init__(self):
-        self._id = ""
+    def __init__(self, id=None):
+        if id:
+            self._id = id
+        else:
+            self._id = stringcase.spinalcase(self.__class__.__name__) + "--" + str(uuid.uuid4())
         self._creation_time = datetime.now()
         self._modification_time = datetime.now()
 
@@ -182,7 +185,16 @@ class StixObject(object):
             return IntrusionSet.from_struct(data)
         elif data.get("type", "") == "threat-actor":
             return ThreatActor.from_struct(data)
+        elif data.get("type", "") == "identity":
+            return Identity.from_struct(data)
+        elif data.get("type", "") == "tool":
+            return Tool.from_struct(data)
+        elif data.get("type", "") == "attack-pattern":
+            return AttackPattern.from_struct(data)
+        elif data.get("type", "") == "report":
+            return Report.from_struct(data)
         else:
+            print(data["type"])
             raise NotImplementedError()
 
     def __repr__(self):
@@ -307,13 +319,14 @@ class Indicator(StixObject):
     def parse_patterns(pattern):
         patterns = []
         for entry in re.split(" (AND|OR) ", pattern.strip("[]")):
-            if entry == " AND " or entry == " OR ":
+            if entry.strip() == "AND" or entry.strip() == "OR":
                 continue
             obj = re.match(r"([\w\.\:\-]+)\s*=\s*'([^\']*)'", entry)
             if obj:
                 patterns.append([obj.group(1), obj.group(2)])
 
             else:
+                print(entry)
                 raise InvalidSTIXFormat()
 
         return patterns
@@ -359,7 +372,6 @@ class Relationship(StixObject):
     """
     Relationship object
     """
-    # FIXME: force types
     def __init__(self, id=None, type="indicates", source=None, target=None):
         super().__init__()
         if id:
@@ -413,6 +425,8 @@ class Relationship(StixObject):
         obj.type = data.get("type", "")
         obj.source = data.get("source_ref", "")
         obj.target = data.get("target_ref", "")
+        obj.creation_time = data["created"]
+        obj.modification_time = data["modified"]
         return obj
 
 
@@ -475,7 +489,7 @@ class IntrusionSet(StixObject):
 
     def to_struct(self):
         return {
-             "type": "intrusion-set",
+            "type": "intrusion-set",
             "spec_version": "2.1",
             "id": self.id,
             "created": self.creation_time,
@@ -494,8 +508,8 @@ class IntrusionSet(StixObject):
         obj = IntrusionSet()
         obj.name = data.get("name", "")
         obj.id = data.get("id", "")
-        obj.creation_time = parse(data["created"])
-        obj.modification_time = parse(data["modified"])
+        obj.creation_time = data["created"]
+        obj.modification_time = data["modified"]
         obj.description = data.get("description", "")
         obj.resource_level = data.get("resource_level", "")
         obj.primary_motivation = data.get("primary_motivation", "")
@@ -597,4 +611,305 @@ class ThreatActor(StixObject):
         obj.resource_level = data.get("resource_level", "")
         obj.primary_motivation = data.get("primary_motivation", "")
         obj.aliases = data.get("aliases", [])
+        return obj
+
+
+class Identity(StixObject):
+    """
+    Identity
+    """
+    def __init__(self, id=None, name=None, identity_class=None, sectors=None, contact_information=None):
+        super().__init__()
+        self._name = name
+        self._identity_class = identity_class
+        if id:
+            self.id = id
+        else:
+            self.id = "identity--" + str(uuid.uuid4())
+        if sectors:
+            self._sectors = sectors
+        else:
+            self._sectors = []
+        self._contact_information = contact_information
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+
+    @property
+    def identity_class(self):
+        return self._identity_class
+
+    @identity_class.setter
+    def identity_class(self, value):
+        self._identity_class = value
+
+    @property
+    def sectors(self) -> list:
+        return self._sectors
+
+    @sectors.setter
+    def sectors(self, value: list) -> None:
+        self._sectors = value
+
+    @property
+    def contact_information(self):
+        return self._contact_information
+
+    @contact_information.setter
+    def contact_information(self, value):
+        self._contact_information = value
+
+    def to_struct(self) -> dict:
+        return {
+            "type": "identity",
+            "spec_version": "2.1",
+            "id": self.id,
+            "created": self.creation_time,
+            "modified": self.modification_time,
+            "name": self.name,
+            "identity_class": self.identity_class,
+            "sectors": self.sectors,
+            "contact_information": self.contact_information
+        }
+
+    @staticmethod
+    def from_struct(data):
+        obj = Identity()
+        obj.id = data.get("id", "")
+        obj.creation_time = data["created"]
+        obj.modification_time = data["modified"]
+        obj.name = data.get("name", "")
+        obj.identity_class = data.get("identity_class", "")
+        obj.sectors = data.get("sectors", [])
+        obj.contact_information = data.get("contact_information", "")
+        return obj
+
+
+class Tool(StixObject):
+    """
+    Tool
+    """
+    def __init__(self, id=None, name=None, tool_types=None, description="", kill_chain_phases=None):
+        super().__init__(id=id)
+        self._name = name
+        self._tool_types = tool_types
+        self._description = description
+        self._kill_chain_phases = kill_chain_phases
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+
+    @property
+    def tool_types(self) -> list:
+        return self._tool_types
+
+    @tool_types.setter
+    def tool_types(self, value: list) -> None:
+        self._tool_types = value
+
+    @property
+    def description(self):
+        return self._description
+
+    @description.setter
+    def description(self, value):
+        self._description = value
+
+    @property
+    def kill_chain_phases(self) -> list:
+        return self._kill_chain_phases
+
+    @kill_chain_phases.setter
+    def kill_chain_phases(self, value):
+        self._kill_chain_phases = value
+
+    def to_struct(self) -> dict:
+        return {
+            "type": "tool",
+            "spec_version": "2.1",
+            "id": self.id,
+            "created": self.creation_time,
+            "modified": self.modification_time,
+            "name": self.name,
+            "tool_types": self.tool_types,
+            "description": self.description,
+            "kill_chain_phases": self.kill_chain_phases
+        }
+
+    @staticmethod
+    def from_struct(data) -> StixObject:
+        obj = Tool()
+        obj.id = data.get("id", None)
+        obj.name = data.get("name", "")
+        obj.description = data.get("description", "")
+        obj.tool_types = data.get("tool_types", [])
+        obj.kill_chain_phases = data.get("kill_chain_phases", [])
+        return obj
+
+class AttackPattern(StixObject):
+    """
+    Attack Pattern
+    """
+    def __init__(self, id=None, name=None, description=None, external_references=None, kill_chain_phases=None):
+        super().__init__(id=id)
+        self._name = name
+        self._description = description
+        if external_references:
+            self._external_references = external_references
+        else:
+            self._external_references = []
+        if kill_chain_phases:
+            self._kill_chain_phases = kill_chain_phases
+        else:
+            self._kill_chain_phases = []
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+
+    @property
+    def description(self):
+        return self._description
+
+    @description.setter
+    def description(self, value):
+        self._description = value
+
+    @property
+    def external_references(self):
+        return self._external_references
+
+    @external_references.setter
+    def external_references(self, value):
+        self._external_references = value
+
+    @property
+    def kill_chain_phases(self):
+        return self._kill_chain_phases
+
+    @kill_chain_phases.setter
+    def kill_chain_phases(self, value):
+        self._kill_chain_phases = value
+
+    def to_struct(self) -> dict:
+        return {
+            "type": "attack-pattern",
+            "spec_version": "2.1",
+            "id": self.id,
+            "created": self.creation_time,
+            "modified": self.modification_time,
+            "name": self.name,
+            "description": self.description,
+            "external_references": self.external_references,
+            "kill_chain_phases": self.kill_chain_phases
+        }
+
+    @staticmethod
+    def from_struct(data):
+        obj = AttackPattern()
+        obj.id = data.get("id", "")
+        obj.creation_time = data["created"]
+        obj.modification_time = data["modified"]
+        obj.name = data.get("name", "")
+        obj.description = data.get("description", "")
+        obj.external_references = data.get("external_references", [])
+        obj.kill_chain_phases = data.get("kill_chain_phases", [])
+        return obj
+
+
+class Report(StixObject):
+    def __init__(self, id=None, name=None, report_types=None, published=None, description=None, objects_refs=None):
+        super().__init__(id=id)
+        self._name = name
+        if report_types:
+            self._report_types = report_types
+        else:
+            self._report_types = []
+        self._publication_time = published
+        self._description = description
+        if objects_refs:
+            self._objects_refs = objects_refs
+        else:
+            self._objects_refs = []
+
+    @property
+    def name(self):
+        return sef._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+
+    @property
+    def report_types(self):
+        return self._report_types
+
+    @report_types.setter
+    def report_types(self, value):
+        self._report_types = value
+
+    @property
+    def description(self):
+        return self._description
+
+    @description.setter
+    def description(self, value):
+        self._description = value
+
+    @property
+    def publication_time(self):
+        return self._publication_time
+
+    @publication_time.setter
+    def publication_time(self, value):
+        if isinstance(value, str):
+            self._publication_time = parse(value)
+        else:
+            self._publication_time = value
+
+    @property
+    def objects_refs(self):
+        return self._objects_refs
+
+    @objects_refs.setter
+    def objects_refs(self, value: list) -> None:
+        self._objects_refs = value
+
+    def to_struct(self) -> dict:
+        return {
+            "type": "report",
+            "spec_version": "2.1",
+            "id": self.id,
+            "created": self.creation_time,
+            "modified": self.modification_time,
+            "name": self.name,
+            "report_types": self.report_types,
+            "description": self.description,
+            "objects_refs": self.objects_refs
+        }
+
+    @staticmethod
+    def from_struct(data):
+        obj = Report()
+        obj.id = data.get("id", "")
+        obj.creation_time = data["created"]
+        obj.modification_time = data["modified"]
+        obj.name = data.get("name", "")
+        obj.description = data.get("description", "")
+        obj.report_types = data.get("report_types", [])
+        obj.objects_refs = data.get("objects_refs", [])
         return obj
